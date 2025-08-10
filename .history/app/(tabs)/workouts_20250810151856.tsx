@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -7,8 +7,7 @@ import {
     TextInput,
     TouchableOpacity,
     Alert,
-    SafeAreaView,
-    Share
+    SafeAreaView
 } from 'react-native';
 import { exercises, getExercisesByMuscleGroup } from '../../src/data/exercises';
 import {
@@ -16,8 +15,7 @@ import {
     UserMaxes,
     WorkoutExercise,
     MuscleGroup,
-    SetSchemeConfig,
-    Workout
+    SetSchemeConfig
 } from '../../src/types';
 import {
     setSchemes,
@@ -27,7 +25,6 @@ import {
     formatRestTime,
     calculateTotalVolume
 } from '../../src/utils/workoutCalculations';
-import { loadUserMaxes, saveWorkout } from '../../src/utils/storage';
 
 export default function WorkoutsScreen() {
     const [workoutName, setWorkoutName] = useState('');
@@ -36,20 +33,16 @@ export default function WorkoutsScreen() {
     const [selectedScheme, setSelectedScheme] = useState<string>('pyramid');
     const [workoutExercises, setWorkoutExercises] = useState<WorkoutExercise[]>([]);
     const [showExerciseSelector, setShowExerciseSelector] = useState(false);
-    const [userMaxes, setUserMaxes] = useState<UserMaxes>({});
-    const [isLoading, setIsLoading] = useState(true);
 
-    // Load saved maxes on component mount
-    useEffect(() => {
-        loadSavedMaxes();
-    }, []);
-
-    const loadSavedMaxes = async () => {
-        setIsLoading(true);
-        const savedMaxes = await loadUserMaxes();
-        setUserMaxes(savedMaxes);
-        setIsLoading(false);
-    };
+    // TODO: In Phase 4, we'll load this from AsyncStorage
+    // For now, using sample maxes for demonstration
+    const [userMaxes] = useState<UserMaxes>({
+        'chest_press': { weight: 135, testedDate: '2024-01-15' },
+        'squat': { weight: 225, testedDate: '2024-01-15' },
+        'deadlift': { weight: 275, testedDate: '2024-01-15' },
+        'bicep_curl': { weight: 45, testedDate: '2024-01-15' },
+        'shoulder_press': { weight: 95, testedDate: '2024-01-15' },
+    });
 
     const muscleGroups: MuscleGroup[] = [
         'Chest', 'Biceps', 'Triceps', 'Forearms',
@@ -123,7 +116,7 @@ export default function WorkoutsScreen() {
         );
     };
 
-    const handleCreateWorkout = async () => {
+    const handleCreateWorkout = () => {
         if (!workoutName.trim()) {
             Alert.alert('Name Required', 'Please enter a workout name.');
             return;
@@ -137,26 +130,10 @@ export default function WorkoutsScreen() {
             return total + calculateTotalVolume(exercise.sets);
         }, 0);
 
-        // Create workout object
-        const workout: Workout = {
-            id: Date.now().toString(),
-            name: workoutName,
-            date: new Date().toISOString(),
-            muscleGroups: selectedMuscleGroups as MuscleGroup[],
-            exercises: workoutExercises,
-            totalVolume: totalVolume
-        };
-
-        // Save to storage
-        await saveWorkout(workout);
-
         Alert.alert(
             'Workout Created! 🎯',
-            `"${workoutName}" saved!\n\nTotal Volume: ${totalVolume.toLocaleString()} lbs\nExercises: ${workoutExercises.length}\n\nWould you like to share this workout?`,
-            [
-                { text: 'Share', onPress: () => shareWorkout(workout) },
-                { text: 'Done' }
-            ]
+            `"${workoutName}" saved!\n\nTotal Volume: ${totalVolume.toLocaleString()} lbs\nExercises: ${workoutExercises.length}\nReady to export to CSV!`,
+            [{ text: 'Awesome!' }]
         );
 
         // Reset form
@@ -166,78 +143,10 @@ export default function WorkoutsScreen() {
         setWorkoutExercises([]);
     };
 
-    const shareWorkout = async (workout: Workout) => {
-        const workoutText = formatWorkoutForSharing(workout);
-        try {
-            await Share.share({
-                message: workoutText,
-                title: `SpeediFit Workout: ${workout.name}`
-            });
-        } catch (error) {
-            console.error('Error sharing:', error);
-        }
-    };
-
-    const formatWorkoutForSharing = (workout: Workout): string => {
-        let text = `🏋️ SpeediFit Workout: ${workout.name}\n`;
-        text += `📅 Date: ${new Date(workout.date).toLocaleDateString()}\n`;
-        text += `💪 Muscle Groups: ${workout.muscleGroups.join(', ')}\n`;
-        text += `📊 Total Volume: ${workout.totalVolume?.toLocaleString()} lbs\n`;
-        text += `\n--- EXERCISES ---\n\n`;
-
-        workout.exercises.forEach((exercise, index) => {
-            text += `${index + 1}. ${exercise.exerciseName}\n`;
-            exercise.sets.forEach(set => {
-                text += `   Set ${set.setNumber}: ${set.weight} lbs × ${set.reps} reps (${set.percentageOfMax}%) - Rest: ${formatRestTime(set.restTime)}\n`;
-            });
-            text += `   Volume: ${calculateTotalVolume(exercise.sets).toLocaleString()} lbs\n\n`;
-        });
-
-        text += `\n💡 Generated with SpeediFit - Percentage-based training for the Mark Wahlberg physique!`;
-        return text;
-    };
-
     // Get filtered exercises based on selected muscle groups
     const filteredExercises = selectedMuscleGroups.length > 0
         ? getExercisesByMuscleGroup(selectedMuscleGroups)
         : exercises;
-
-    if (isLoading) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>Loading your maxes...</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
-    // Check if user has any maxes saved
-    const hasAnyMaxes = Object.keys(userMaxes).length > 0;
-
-    if (!hasAnyMaxes) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <ScrollView>
-                    <View style={styles.content}>
-                        <Text style={styles.title}>Create Custom Workout</Text>
-                        <View style={styles.noMaxesCard}>
-                            <Text style={styles.noMaxesEmoji}>⚠️</Text>
-                            <Text style={styles.noMaxesTitle}>No Maxes Recorded</Text>
-                            <Text style={styles.noMaxesText}>
-                                You need to test your one-rep maxes before creating percentage-based workouts.
-                            </Text>
-                            <TouchableOpacity style={styles.goToMaxButton}>
-                                <Text style={styles.goToMaxButtonText}>
-                                    Go to Max Testing Tab →
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </ScrollView>
-            </SafeAreaView>
-        );
-    }
 
     return (
         <SafeAreaView style={styles.container}>
@@ -474,26 +383,12 @@ export default function WorkoutsScreen() {
                         <Text style={styles.createButtonText}>Save Workout</Text>
                     </TouchableOpacity>
 
-                    {workoutExercises.length > 0 && (
-                        <TouchableOpacity
-                            style={styles.shareButton}
-                            onPress={() => {
-                                const tempWorkout: Workout = {
-                                    id: 'temp',
-                                    name: workoutName || 'Quick Workout',
-                                    date: new Date().toISOString(),
-                                    muscleGroups: selectedMuscleGroups as MuscleGroup[],
-                                    exercises: workoutExercises,
-                                    totalVolume: workoutExercises.reduce((t, e) =>
-                                        t + calculateTotalVolume(e.sets), 0
-                                    )
-                                };
-                                shareWorkout(tempWorkout);
-                            }}
-                        >
-                            <Text style={styles.shareButtonText}>📤 Share Workout Sheet</Text>
-                        </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                        style={styles.exportButton}
+                        onPress={() => Alert.alert('Export', 'CSV export will be added in Phase 4')}
+                    >
+                        <Text style={styles.exportButtonText}>📊 Export to CSV</Text>
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -507,55 +402,6 @@ const styles = StyleSheet.create({
     },
     content: {
         padding: 16,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        fontSize: 16,
-        color: '#7f8c8d',
-    },
-    noMaxesCard: {
-        backgroundColor: '#fff',
-        padding: 32,
-        borderRadius: 12,
-        alignItems: 'center',
-        marginTop: 40,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    noMaxesEmoji: {
-        fontSize: 48,
-        marginBottom: 16,
-    },
-    noMaxesTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#2c3e50',
-        marginBottom: 12,
-    },
-    noMaxesText: {
-        fontSize: 14,
-        color: '#7f8c8d',
-        textAlign: 'center',
-        lineHeight: 20,
-        marginBottom: 24,
-    },
-    goToMaxButton: {
-        backgroundColor: '#3498db',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 8,
-    },
-    goToMaxButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
     },
     title: {
         fontSize: 24,
@@ -830,13 +676,13 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '600',
     },
-    shareButton: {
-        backgroundColor: '#3498db',
+    exportButton: {
+        backgroundColor: '#f39c12',
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
     },
-    shareButtonText: {
+    exportButtonText: {
         color: '#fff',
         fontSize: 16,
         fontWeight: '600',
