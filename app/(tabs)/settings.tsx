@@ -95,7 +95,7 @@ export default function SettingsScreen() {
             await scheduleNotification();
             Alert.alert(
                 'Reminder Set! 💊',
-                `You'll receive a daily reminder at ${formatTime(reminderTime)} to take your creatine.`,
+                `You'll get reminded every day at ${formatTime(reminderTime)} to take creatine.`,
                 [{ text: 'Perfect!' }]
             );
         } else {
@@ -160,33 +160,38 @@ export default function SettingsScreen() {
         // On Android, close picker after selection
         if (Platform.OS === 'android') {
             setShowTimePicker(false);
-        }
 
-        if (selectedDate) {
-            setReminderTime(selectedDate);
-            await AsyncStorage.setItem(STORAGE_KEYS.REMINDER_TIME, selectedDate.toISOString());
+            if (selectedDate) {
+                setReminderTime(selectedDate);
+                await AsyncStorage.setItem(STORAGE_KEYS.REMINDER_TIME, selectedDate.toISOString());
 
-            if (reminderEnabled) {
-                await scheduleNotification();
-                // Only show alert on Android or when iOS modal is closed
-                if (Platform.OS === 'android') {
+                if (reminderEnabled) {
+                    await scheduleNotification();
                     Alert.alert(
-                        'Time Updated! ⏰',
-                        `Your creatine reminder is now set for ${formatTime(selectedDate)}.`,
-                        [{ text: 'Great!' }]
+                        'Success! ✅',
+                        `You'll get reminded every day at ${formatTime(selectedDate)} to take creatine.`,
+                        [{ text: 'Perfect!' }]
                     );
                 }
             }
+        } else if (Platform.OS === 'ios' && selectedDate) {
+            // On iOS, just update the state without scheduling
+            setReminderTime(selectedDate);
         }
     };
 
     const handleTimePickerDone = async () => {
         setShowTimePicker(false);
+
+        // Save the time and schedule notification
+        await AsyncStorage.setItem(STORAGE_KEYS.REMINDER_TIME, reminderTime.toISOString());
+
         if (reminderEnabled) {
+            await scheduleNotification();
             Alert.alert(
-                'Time Updated! ⏰',
-                `Your creatine reminder is now set for ${formatTime(reminderTime)}.`,
-                [{ text: 'Great!' }]
+                'Success! ✅',
+                `You'll get reminded every day at ${formatTime(reminderTime)} to take creatine.`,
+                [{ text: 'Perfect!' }]
             );
         }
     };
@@ -200,8 +205,8 @@ export default function SettingsScreen() {
         if (reminderEnabled) {
             await scheduleNotification();
             Alert.alert(
-                'Time Updated! ⏰',
-                `Your creatine reminder is now set for ${formatTime(newTime)}.`,
+                'Success! ✅',
+                `You'll get reminded every day at ${formatTime(newTime)} to take creatine.`,
                 [{ text: 'Perfect!' }]
             );
         }
