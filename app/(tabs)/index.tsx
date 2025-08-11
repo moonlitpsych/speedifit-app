@@ -1,3 +1,4 @@
+// app/(tabs)/index.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -14,13 +15,15 @@ import {
   loadWorkouts,
   saveCreatineTaken,
   didTakeCreatineToday,
-  loadUserMaxes
+  loadUserMaxes,
+  calculateCreatineStreak
 } from '../../src/utils/storage';
 
 export default function HomeScreen() {
   const [workoutsThisWeek, setWorkoutsThisWeek] = useState(0);
   const [totalVolume, setTotalVolume] = useState(0);
   const [creatineTaken, setCreatineTaken] = useState(false);
+  const [creatineStreak, setCreatineStreak] = useState(0);
   const [testedExercises, setTestedExercises] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -51,9 +54,12 @@ export default function HomeScreen() {
     );
     setTotalVolume(weekVolume);
 
-    // Check creatine status
+    // Check creatine status and streak
     const tookCreatine = await didTakeCreatineToday();
     setCreatineTaken(tookCreatine);
+
+    const streak = await calculateCreatineStreak();
+    setCreatineStreak(streak);
 
     // Count tested exercises
     const maxes = await loadUserMaxes();
@@ -78,7 +84,7 @@ export default function HomeScreen() {
     if (creatineTaken) {
       Alert.alert(
         'Already Taken',
-        'You\'ve already logged your creatine for today! Keep up the consistency.',
+        `You've already logged your creatine for today!\n\nCurrent streak: ${creatineStreak} day${creatineStreak === 1 ? '' : 's'} 🔥`,
         [{ text: 'Nice!' }]
       );
       return;
@@ -88,9 +94,13 @@ export default function HomeScreen() {
     await saveCreatineTaken(today);
     setCreatineTaken(true);
 
+    // Reload streak
+    const newStreak = await calculateCreatineStreak();
+    setCreatineStreak(newStreak);
+
     Alert.alert(
       'Creatine Logged! 💪',
-      'Great job staying consistent! Creatine helps with strength and muscle building.',
+      `Great job staying consistent!\n\nStreak: ${newStreak} day${newStreak === 1 ? '' : 's'} 🔥\n\nCreatine helps with strength and muscle building.`,
       [{ text: 'Nice!' }]
     );
   };
@@ -103,6 +113,14 @@ export default function HomeScreen() {
     } else {
       return `Crushing it with ${workoutsThisWeek} workouts this week! You're on fire!`;
     }
+  };
+
+  const getStreakEmoji = () => {
+    if (creatineStreak === 0) return '📅';
+    if (creatineStreak < 7) return '🔥';
+    if (creatineStreak < 30) return '⚡';
+    if (creatineStreak < 90) return '💎';
+    return '👑';
   };
 
   return (
@@ -143,13 +161,26 @@ export default function HomeScreen() {
               <Text style={styles.statNumber}>{testedExercises}</Text>
               <Text style={styles.statLabel}>Exercises Tested</Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>
-                {creatineTaken ? '✅' : '⏳'}
+            <View style={[styles.statCard, creatineStreak > 0 && styles.streakCard]}>
+              <Text style={[styles.statNumber, creatineStreak > 0 && styles.streakNumber]}>
+                {getStreakEmoji()} {creatineStreak}
               </Text>
-              <Text style={styles.statLabel}>Creatine Today</Text>
+              <Text style={styles.statLabel}>Creatine Streak</Text>
             </View>
           </View>
+
+          {/* Creatine Status Banner */}
+          {creatineStreak >= 7 && (
+            <View style={styles.streakBanner}>
+              <Text style={styles.streakBannerText}>
+                {creatineStreak >= 90
+                  ? `👑 Elite Status: ${creatineStreak} day streak!`
+                  : creatineStreak >= 30
+                    ? `💎 Diamond Consistency: ${creatineStreak} day streak!`
+                    : `⚡ On Fire: ${creatineStreak} day streak! Keep it up!`}
+              </Text>
+            </View>
+          )}
 
           {/* Action Buttons */}
           <TouchableOpacity
@@ -177,6 +208,11 @@ export default function HomeScreen() {
             <Text style={styles.motivationText}>
               {getMotivationalMessage()}
             </Text>
+            {creatineStreak > 0 && !creatineTaken && (
+              <Text style={styles.streakWarning}>
+                ⚠️ Don't break your {creatineStreak} day streak! Take your creatine.
+              </Text>
+            )}
           </View>
 
           {/* Tips Card */}
@@ -186,8 +222,9 @@ export default function HomeScreen() {
               • Test your maxes in the Max Testing tab{'\n'}
               • Create percentage-based workouts{'\n'}
               • Share your workout sheet to reference during training{'\n'}
-              • Take creatine daily for best results{'\n'}
-              • Re-test maxes every 4-6 weeks
+              • Take creatine daily for best results (5g){'\n'}
+              • Re-test maxes every 4-6 weeks{'\n'}
+              • Set up reminders in Settings tab
             </Text>
           </View>
         </View>
@@ -235,15 +272,35 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  streakCard: {
+    backgroundColor: '#fff3e0',
+    borderWidth: 2,
+    borderColor: '#f39c12',
+  },
   statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#3498db',
     marginBottom: 4,
   },
+  streakNumber: {
+    color: '#f39c12',
+  },
   statLabel: {
     fontSize: 12,
     color: '#7f8c8d',
+    textAlign: 'center',
+  },
+  streakBanner: {
+    backgroundColor: '#f39c12',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  streakBannerText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
     textAlign: 'center',
   },
   button: {
@@ -288,6 +345,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#7f8c8d',
     lineHeight: 20,
+  },
+  streakWarning: {
+    fontSize: 14,
+    color: '#e74c3c',
+    marginTop: 8,
+    fontWeight: '600',
   },
   tipsCard: {
     backgroundColor: '#e8f4fd',
